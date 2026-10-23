@@ -1,4 +1,8 @@
 import os
+# สั่งปิดการจองแรมส่วนเกินของ TensorFlow และลด Log ที่ไม่จำเป็น
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
 import io
 import numpy as np
 from PIL import Image
@@ -9,7 +13,6 @@ from qdrant_client import QdrantClient
 
 app = FastAPI()
 
-# เปิดรับ CORS จากทุกโดเมน
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,7 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ข้อมูลเชื่อมต่อ Qdrant (ใส่ URL และ API Key ของคุณ)
+# ข้อมูลเชื่อมต่อ Qdrant
 QDRANT_URL = "https://your-cluster-url.qdrant.tech"
 QDRANT_API_KEY = "your-api-key"
 COLLECTION_NAME = "event_faces"
@@ -32,15 +35,14 @@ def health_check():
 @app.post("/search")
 async def search_face(file: UploadFile = File(...)):
     try:
-        # อ่านไฟล์รูปภาพ
         contents = await file.read()
         image = Image.open(io.BytesIO(contents)).convert("RGB")
         
-        # ปรับขนาดย่อภาพลงหากใหญ่เกินไปเพื่อประหยัด RAM บน Render Free
-        image.thumbnail((800, 800))
+        # ย่อขนาดรูปภาพให้เล็กลงเหลือ 500px เพื่อลดการใช้แรมขณะประมวลผล
+        image.thumbnail((500, 500))
         img_np = np.array(image)
 
-        # สกัดเวกเตอร์ใบหน้า โดยตั้ง enforce_detection=False ป้องกันแครชหากตรวจไม่พบหน้าตรงเป๊ะ
+        # สลับมาใช้ detector opencv และ enforce_detection=False
         embeddings = DeepFace.represent(
             img_path=img_np,
             model_name="Facenet512",
@@ -53,12 +55,12 @@ async def search_face(file: UploadFile = File(...)):
 
         query_vector = embeddings[0]["embedding"]
 
-        # ค้นหาเวกเตอร์ที่ใกล้เคียงที่สุดจาก Qdrant
+        # ค้นหาใน Qdrant
         search_result = client.search(
             collection_name=COLLECTION_NAME,
             query_vector=query_vector,
             limit=12,
-            score_threshold=0.40  # ปรับเกณฑ์ความเหมือนตามความเหมาะสม
+            score_threshold=0.40
         )
 
         results = [hit.payload for hit in search_result]
