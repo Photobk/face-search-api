@@ -23,8 +23,8 @@ app.add_middleware(
 )
 
 # ข้อมูลเชื่อมต่อ Qdrant (อย่าลืมตรวจเช็ก URL และ API KEY ของคุณ)
-QDRANT_URL = "https://your-cluster-url.qdrant.tech"
-QDRANT_API_KEY = "your-api-key"
+QDRANT_URL = "https://03d32c2a-f1d5-4076-bd7b-1ce3b4cc8e70.us-west-1-0.aws.cloud.qdrant.io"
+QDRANT_API_KEY = "03d32c2a-f1d5-4076-bd7b-1ce3b4cc8e70"
 COLLECTION_NAME = "event_faces"
 
 client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
