@@ -58,12 +58,6 @@ async def search_face(file: UploadFile = File(...)):
 
     query_vector = embeddings[0]["embedding"]
 
-    # ค้นหาใน Qdrant ด้วย query_points (ไวยากรณ์เวอร์ชันใหม่)
-    response = client.query_points(
-        collection_name=COLLECTION_NAME,
-        query=query_vector,
-        limit=12,
-        score_threshold=0.40,
     )
 
     results = [hit.payload for hit in response.points]
