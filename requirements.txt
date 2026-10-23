@@ -1,8 +1,7 @@
 fastapi
-uvicorn[standard]
+uvicorn
 python-multipart
 deepface
-tf-keras
 qdrant-client
-requests
-numpy
+tf-keras
+werkzeug
