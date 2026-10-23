@@ -45,7 +45,7 @@ async def search_face(file: UploadFile = File(...)):
         # สลับมาใช้ detector opencv และ enforce_detection=False
         embeddings = DeepFace.represent(
             img_path=img_np,
-            model_name="Facenet512",
+            model_name="OpenFace",
             detector_backend="opencv",
             enforce_detection=False
         )
