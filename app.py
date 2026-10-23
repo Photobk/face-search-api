@@ -24,7 +24,7 @@ app.add_middleware(
 
 # ข้อมูลเชื่อมต่อ Qdrant (อย่าลืมตรวจเช็ก URL และ API KEY ของคุณ)
 QDRANT_URL = "https://03d32c2a-f1d5-4076-bd7b-1ce3b4cc8e70.us-west-1-0.aws.cloud.qdrant.io"
-QDRANT_API_KEY = "03d32c2a-f1d5-4076-bd7b-1ce3b4cc8e70"
+QDRANT_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwic3ViamVjdCI6ImFwaS1rZXk6ZDkwMzU5OTItYzg5ZC00MzM5LWI3OWItNDkxNjQzZDM2MTcwIn0.3pkA4knu0EVaHoCn9HAlunY0WrGKde195WykbsFjcc8"
 COLLECTION_NAME = "event_faces"
 
 client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
