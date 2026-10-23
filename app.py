@@ -48,7 +48,7 @@ async def search_face(file: UploadFile = File(...)):
     # สกัดเวกเตอร์ใบหน้าด้วย OpenFace (โมเดลขนาดเล็ก 15MB ไม่กิน RAM)
     embeddings = DeepFace.represent(
         img_path=img_np,
-        model_name="Facenet512",
+        model_name="OpenFace",
         detector_backend="opencv",
         enforce_detection=False,
     )
