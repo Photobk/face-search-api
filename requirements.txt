@@ -5,3 +5,5 @@ deepface
 qdrant-client
 tf-keras
 werkzeug
+pillow
+numpy
