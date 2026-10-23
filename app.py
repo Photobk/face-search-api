@@ -1,13 +1,15 @@
-import tempfile
-import requests
-from fastapi import FastAPI, UploadFile, File
+import os
+import io
+import numpy as np
+from PIL import Image
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from deepface import DeepFace
 from qdrant_client import QdrantClient
-from qdrant_client.models import PointStruct
 
 app = FastAPI()
 
+# เปิดรับ CORS จากทุกโดเมน
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,92 +18,52 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-QDRANT_URL = "https://03d32c2a-f1d5-4076-bd7b-1ce3b4cc8e70.us-west-1-0.aws.cloud.qdrant.io"
-QDRANT_API_KEY = "03d32c2a-f1d5-4076-bd7b-1ce3b4cc8e70"
+# ข้อมูลเชื่อมต่อ Qdrant (ใส่ URL และ API Key ของคุณ)
+QDRANT_URL = "https://your-cluster-url.qdrant.tech"
+QDRANT_API_KEY = "your-api-key"
+COLLECTION_NAME = "event_faces"
 
-qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 
-# 1. API บันทึกรูปกิจกรรมจาก Google Drive
-@app.post("/index-photo")
-async def index_photo(data: dict):
-    photo_url = data.get("photo_url")
-    event_title = data.get("event_title", "กิจกรรม")
-    event_date = data.get("event_date", "")
+@app.get("/")
+def health_check():
+    return {"status": "ok", "message": "Face Search API is running"}
 
-    try:
-        response = requests.get(photo_url, timeout=30)
-        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-            tmp.write(response.content)
-            tmp_path = tmp.name
-
-        faces = DeepFace.represent(
-            img_path=tmp_path,
-            model_name="Facenet512",
-            detector_backend="opencv",
-            enforce_detection=False
-        )
-
-        points = []
-        for idx, face in enumerate(faces):
-            points.append(
-                PointStruct(
-                    id=abs(hash(f"{photo_url}_{idx}_{event_date}")),
-                    vector=face["embedding"],
-                    payload={
-                        "photo_url": photo_url,
-                        "event_title": event_title,
-                        "event_date": event_date
-                    }
-                )
-            )
-
-        if points:
-            qdrant.upsert(collection_name="event_faces", points=points)
-
-        return {"status": "success", "faces_detected": len(points)}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-# 2. API ค้นหารูปจากรูปหน้าคนที่อัปโหลด
 @app.post("/search")
 async def search_face(file: UploadFile = File(...)):
-    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-        tmp.write(await file.read())
-        tmp_path = tmp.name
-
     try:
-        faces = DeepFace.represent(
-            img_path=tmp_path,
+        # อ่านไฟล์รูปภาพ
+        contents = await file.read()
+        image = Image.open(io.BytesIO(contents)).convert("RGB")
+        
+        # ปรับขนาดย่อภาพลงหากใหญ่เกินไปเพื่อประหยัด RAM บน Render Free
+        image.thumbnail((800, 800))
+        img_np = np.array(image)
+
+        # สกัดเวกเตอร์ใบหน้า โดยตั้ง enforce_detection=False ป้องกันแครชหากตรวจไม่พบหน้าตรงเป๊ะ
+        embeddings = DeepFace.represent(
+            img_path=img_np,
             model_name="Facenet512",
             detector_backend="opencv",
             enforce_detection=False
         )
 
-        if not faces:
-            return {"status": "not_found", "results": []}
+        if not embeddings or len(embeddings) == 0:
+            return {"status": "success", "results": []}
 
-        query_vector = faces[0]["embedding"]
-        hits = qdrant.query_points(
-            collection_name="event_faces",
-            query=query_vector,
-            limit=30,
-            score_threshold=0.60
+        query_vector = embeddings[0]["embedding"]
+
+        # ค้นหาเวกเตอร์ที่ใกล้เคียงที่สุดจาก Qdrant
+        search_result = client.search(
+            collection_name=COLLECTION_NAME,
+            query_vector=query_vector,
+            limit=12,
+            score_threshold=0.40  # ปรับเกณฑ์ความเหมือนตามความเหมาะสม
         )
 
-        results = []
-        seen_urls = set()
-        for hit in hits.points:
-            url = hit.payload.get("photo_url")
-            if url not in seen_urls:
-                seen_urls.add(url)
-                results.append({
-                    "photo_url": url,
-                    "event_title": hit.payload.get("event_title"),
-                    "event_date": hit.payload.get("event_date")
-                })
-
-        # เรียงตามวันที่ล่าสุดไปหาเก่าสุด
-        results.sort(key=lambda x: str(x.get("event_date", "")), reverse=True)
+        results = [hit.payload for hit in search_result]
         return {"status": "success", "results": results}
+
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        print(f"Error processing search: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
