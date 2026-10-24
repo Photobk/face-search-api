@@ -129,7 +129,7 @@ async def search_face(file: UploadFile = File(...)):
             collection_name=COLLECTION_NAME,
             query=query_vector,
             limit=12,
-            score_threshold=0.75,
+            score_threshold=0.85,
         )
 
         # จัดเตรียมผลลัพธ์พร้อมส่งคะแนนความเหมือน (score) กลับไป
