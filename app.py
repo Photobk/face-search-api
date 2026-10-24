@@ -154,3 +154,51 @@ async def search_face(file: UploadFile = File(...)):
     except Exception as e:
         print(f"Error processing search: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# 3. ระบบดึงรายชื่ออัลบั้มกิจกรรมทั้งหมด
+@app.get("/albums")
+def get_albums():
+    try:
+        # ดึงภาพกิจกรรมทั้งหมดจาก Qdrant (จำกัด 200 รายการ)
+        records, _ = client.scroll(
+            collection_name=COLLECTION_NAME,
+            limit=200,
+            with_payload=True,
+            with_vectors=False
+        )
+        
+        albums = {}
+        for point in records:
+            payload = point.payload or {}
+            title = payload.get("event_title", "กิจกรรมทั่วไป")
+            url = payload.get("photo_url", "")
+            date = payload.get("event_date", "")
+            
+            if not url:
+                continue
+                
+            if title not in albums:
+                albums[title] = {
+                    "title": title,
+                    "date": date,
+                    "cover_url": url,
+                    "photos": []
+                }
+            if url not in albums[title]["photos"]:
+                albums[title]["photos"].append(url)
+                
+        # แปลงเป็น list
+        album_list = []
+        for a in albums.values():
+            album_list.append({
+                "title": a["title"],
+                "date": a["date"],
+                "cover_url": a["cover_url"],
+                "total_photos": len(a["photos"]),
+                "photos": a["photos"]
+            })
+            
+        return {"status": "success", "albums": album_list}
+    except Exception as e:
+        print(f"Error fetching albums: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
