@@ -47,7 +47,7 @@ def health_check():
     return {"status": "ok", "message": "Face Search API is running"}
 
 
-# 1. ระบบรับรูปจาก Google Apps Script เข้าสู่ Qdrant (ตรงกับที่ GAS เรียกหา)
+# 1. ระบบรับรูปจาก Google Apps Script เข้าสู่ Qdrant
 @app.post("/index-photo")
 async def index_photo(data: IndexPhotoRequest):
     try:
@@ -124,7 +124,7 @@ async def search_face(file: UploadFile = File(...)):
 
         query_vector = embeddings[0]["embedding"]
 
-        # ค้นหาเวกเตอร์ที่ตรงกันจาก Qdrant (ปรับ score_threshold ให้เหมาะกับ OpenFace)
+        # ค้นหาเวกเตอร์ที่ตรงกันจาก Qdrant
         response = client.query_points(
             collection_name=COLLECTION_NAME,
             query=query_vector,
@@ -132,7 +132,23 @@ async def search_face(file: UploadFile = File(...)):
             score_threshold=0.75,
         )
 
-        results = [hit.payload for hit in response.points]
+        # จัดเตรียมผลลัพธ์พร้อมส่งคะแนนความเหมือน (score) กลับไป
+        results = []
+        seen_photos = set()  # กรองไม่ให้แสดงรูปซ้ำกรณีตรวจเจอหลายหน้าในภาพเดียวกัน
+
+        for hit in response.points:
+            payload = hit.payload or {}
+            photo_url = payload.get("photo_url")
+
+            if photo_url and photo_url not in seen_photos:
+                seen_photos.add(photo_url)
+                results.append({
+                    "photo_url": photo_url,
+                    "event_title": payload.get("event_title"),
+                    "event_date": payload.get("event_date"),
+                    "score": float(hit.score) if hit.score is not None else 0.0
+                })
+
         return {"status": "success", "results": results}
 
     except Exception as e:
